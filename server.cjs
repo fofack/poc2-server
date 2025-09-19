@@ -2,11 +2,12 @@
 
 /**
  * Minimal Y.js WebSocket Server for Collaborative Editing
- * This server handles real-time synchronization for the LaTeX editor
+ * Logs the current content of the shared document in each room
  */
 
 const WebSocket = require('ws');
 const http = require('http');
+const Y = require('yjs');
 const { setupWSConnection } = require('y-websocket/bin/utils');
 
 const PORT = process.env.PORT || 8080;
@@ -19,9 +20,8 @@ const server = http.createServer((request, response) => {
 });
 
 // Create WebSocket server
-const wss = new WebSocket.Server({ 
+const wss = new WebSocket.Server({
   server,
-  // Add CORS headers for development
   verifyClient: (info) => {
     console.log(`[${new Date().toISOString()}] WebSocket connection attempt from: ${info.origin}`);
     return true;
@@ -36,16 +36,34 @@ const connectionStats = {
   roomsCreated: 0
 };
 
+// Store Yjs documents
+const docs = new Map();
+
+function getYDoc(roomName) {
+  let doc = docs.get(roomName);
+  if (!doc) {
+    doc = new Y.Doc();
+    docs.set(roomName, doc);
+
+    // Observe changes on the shared text
+    const ytext = doc.getText("content");
+    ytext.observe(() => {
+      console.log(`✏️ [${roomName}] Current content:\n${ytext.toString()}\n---`);
+    });
+  }
+  return doc;
+}
+
 wss.on('connection', (ws, req) => {
   connectionStats.totalConnections++;
   connectionStats.activeConnections++;
-  
+
   const url = req.url;
   const roomName = url ? url.slice(1) : 'default';
-  
+
   console.log(`[${new Date().toISOString()}] 📝 New client connected to room: "${roomName}"`);
   console.log(`[${new Date().toISOString()}] 📊 Stats: ${connectionStats.activeConnections} active connections, ${activeRooms.size} rooms`);
-  
+
   // Track room activity
   if (!activeRooms.has(roomName)) {
     activeRooms.set(roomName, {
@@ -56,42 +74,43 @@ wss.on('connection', (ws, req) => {
     connectionStats.roomsCreated++;
     console.log(`[${new Date().toISOString()}] 🏠 Room "${roomName}" created`);
   }
-  
+
   const roomData = activeRooms.get(roomName);
   roomData.connectionCount++;
   roomData.lastActivity = new Date();
-  
+
+  // Get (or create) the Y.Doc for this room
+  const doc = getYDoc(roomName);
+
   // Setup Y.js WebSocket connection
   setupWSConnection(ws, req, {
-    // Log document updates
-    gc: true, // Enable garbage collection
+    docMap: docs,
+    gc: true,
   });
-  
+
   // Handle client disconnect
   ws.on('close', () => {
     connectionStats.activeConnections--;
-    
+
     if (activeRooms.has(roomName)) {
       const roomData = activeRooms.get(roomName);
       roomData.connectionCount--;
-      
+
       if (roomData.connectionCount <= 0) {
         activeRooms.delete(roomName);
         console.log(`[${new Date().toISOString()}] 🏠 Room "${roomName}" closed (no active connections)`);
       }
     }
-    
+
     console.log(`[${new Date().toISOString()}] 👋 Client disconnected from room: "${roomName}"`);
     console.log(`[${new Date().toISOString()}] 📊 Stats: ${connectionStats.activeConnections} active connections, ${activeRooms.size} rooms`);
   });
-  
-  // Handle WebSocket errors
+
   ws.on('error', (error) => {
     console.error(`[${new Date().toISOString()}] ❌ WebSocket error in room "${roomName}":`, error);
   });
 });
 
-// Enhanced error handling
 wss.on('error', (error) => {
   console.error(`[${new Date().toISOString()}] ❌ WebSocket server error:`, error);
 });
@@ -109,7 +128,7 @@ process.on('SIGINT', () => {
   console.log(`   - Total connections served: ${connectionStats.totalConnections}`);
   console.log(`   - Rooms created: ${connectionStats.roomsCreated}`);
   console.log(`   - Active rooms at shutdown: ${activeRooms.size}`);
-  
+
   wss.close(() => {
     console.log(`[${new Date().toISOString()}] ✅ Server shut down successfully`);
     process.exit(0);
@@ -123,8 +142,7 @@ setInterval(() => {
     console.log(`   - Active connections: ${connectionStats.activeConnections}`);
     console.log(`   - Active rooms: ${activeRooms.size}`);
     console.log(`   - Total connections served: ${connectionStats.totalConnections}`);
-    
-    // Log active rooms
+
     if (activeRooms.size > 0) {
       console.log(`   - Active rooms details:`);
       activeRooms.forEach((data, roomName) => {
