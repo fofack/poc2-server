@@ -9,7 +9,7 @@ const WebSocket = require('ws');
 const http = require('http');
 const { setupWSConnection } = require('y-websocket/bin/utils');
 
-const PORT = process.env.PORT || 1234;
+const PORT = process.env.PORT || 8080;
 const HOST = process.env.HOST || 'localhost';
 
 // Create HTTP server
