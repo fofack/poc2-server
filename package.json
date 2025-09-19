@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "start": "node server.cjs"
+  },
   "dependencies": {
     "ws": "^8.18.0",
     "y-websocket": "^2.0.4"
