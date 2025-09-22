@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * Minimal Y.js WebSocket Server for Collaborative Editing
  * Logs the current content of the shared document in each room
@@ -12,6 +10,7 @@ const { setupWSConnection } = require('y-websocket/bin/utils');
 
 const PORT = process.env.PORT || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
+//const HOST = process.env.HOST || 'localhost';
 
 // Create HTTP server
 const server = http.createServer((request, response) => {
@@ -23,7 +22,7 @@ const server = http.createServer((request, response) => {
 const wss = new WebSocket.Server({
   server,
   verifyClient: (info) => {
-    console.log(`[${new Date().toISOString()}] WebSocket connection attempt from: ${info.origin}`);
+    console.log(`[INFO] [${new Date().toISOString()}] WebSocket connection attempt from: ${info.origin}`);
     return true;
   }
 });
@@ -46,9 +45,10 @@ function getYDoc(roomName) {
     docs.set(roomName, doc);
 
     // Observe changes on the shared text
-    const ytext = doc.getText("content");
+    const ytext = doc.getText("codemirror");
+    console.log(`[INFO] [${roomName}] Initial content:\n${ytext.toString()}\n---`);
     ytext.observe(() => {
-      console.log(`✏️ [${roomName}] Current content:\n${ytext.toString()}\n---`);
+      console.log(`[INFO] [${roomName}] Current content:\n${ytext.toString()}\n---`);
     });
   }
   return doc;
@@ -57,12 +57,12 @@ function getYDoc(roomName) {
 wss.on('connection', (ws, req) => {
   connectionStats.totalConnections++;
   connectionStats.activeConnections++;
-
+ 
   const url = req.url;
   const roomName = url ? url.slice(1) : 'default';
 
-  console.log(`[${new Date().toISOString()}] 📝 New client connected to room: "${roomName}"`);
-  console.log(`[${new Date().toISOString()}] 📊 Stats: ${connectionStats.activeConnections} active connections, ${activeRooms.size} rooms`);
+  console.log(`[INFO] [${new Date().toISOString()}] New client connected to room: "${roomName}"`);
+  console.log(`[INFO] [${new Date().toISOString()}] Stats: ${connectionStats.activeConnections} active connections, ${activeRooms.size} rooms`);
 
   // Track room activity
   if (!activeRooms.has(roomName)) {
@@ -72,7 +72,7 @@ wss.on('connection', (ws, req) => {
       lastActivity: new Date()
     });
     connectionStats.roomsCreated++;
-    console.log(`[${new Date().toISOString()}] 🏠 Room "${roomName}" created`);
+    console.log(`[INFO] [${new Date().toISOString()}] Room "${roomName}" created`);
   }
 
   const roomData = activeRooms.get(roomName);
@@ -98,39 +98,39 @@ wss.on('connection', (ws, req) => {
 
       if (roomData.connectionCount <= 0) {
         activeRooms.delete(roomName);
-        console.log(`[${new Date().toISOString()}] 🏠 Room "${roomName}" closed (no active connections)`);
+        console.log(`[INFO] [${new Date().toISOString()}] Room "${roomName}" closed (no active connections)`);
       }
     }
 
-    console.log(`[${new Date().toISOString()}] 👋 Client disconnected from room: "${roomName}"`);
-    console.log(`[${new Date().toISOString()}] 📊 Stats: ${connectionStats.activeConnections} active connections, ${activeRooms.size} rooms`);
+    console.log(`[INFO] [${new Date().toISOString()}] 👋 Client disconnected from room: "${roomName}"`);
+    console.log(`[INFO] [${new Date().toISOString()}] Stats: ${connectionStats.activeConnections} active connections, ${activeRooms.size} rooms`);
   });
 
   ws.on('error', (error) => {
-    console.error(`[${new Date().toISOString()}] ❌ WebSocket error in room "${roomName}":`, error);
+    console.error(`[INFO] [${new Date().toISOString()}] WebSocket error in room "${roomName}":`, error);
   });
 });
 
 wss.on('error', (error) => {
-  console.error(`[${new Date().toISOString()}] ❌ WebSocket server error:`, error);
+  console.error(`[INFO] [${new Date().toISOString()}] WebSocket server error:`, error);
 });
 
 // Start the server
 server.listen(PORT, HOST, () => {
-  console.log(`[${new Date().toISOString()}] 🚀 Y.js WebSocket server running on ws://${HOST}:${PORT}`);
-  console.log(`[${new Date().toISOString()}] 📡 Ready for collaborative editing sessions`);
+  console.log(`[INFO] [${new Date().toISOString()}] Y.js WebSocket server running on ws://${HOST}:${PORT}`);
+  console.log(`[INFO] [${new Date().toISOString()}] Ready for collaborative editing sessions`);
 });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-  console.log(`\n[${new Date().toISOString()}] 🔄 Shutting down server gracefully...`);
-  console.log(`[${new Date().toISOString()}] 📊 Final stats:`);
+  console.log(`[INFO] \n[${new Date().toISOString()}] Shutting down server gracefully...`);
+  console.log(`[INFO] [${new Date().toISOString()}] Final stats:`);
   console.log(`   - Total connections served: ${connectionStats.totalConnections}`);
   console.log(`   - Rooms created: ${connectionStats.roomsCreated}`);
   console.log(`   - Active rooms at shutdown: ${activeRooms.size}`);
 
   wss.close(() => {
-    console.log(`[${new Date().toISOString()}] ✅ Server shut down successfully`);
+    console.log(`[INFO] [${new Date().toISOString()}] Server shut down successfully`);
     process.exit(0);
   });
 });
@@ -138,7 +138,7 @@ process.on('SIGINT', () => {
 // Log server stats every 5 minutes
 setInterval(() => {
   if (connectionStats.activeConnections > 0 || activeRooms.size > 0) {
-    console.log(`[${new Date().toISOString()}] 📊 Server status:`);
+    console.log(`[INFO] [${new Date().toISOString()}] Server status:`);
     console.log(`   - Active connections: ${connectionStats.activeConnections}`);
     console.log(`   - Active rooms: ${activeRooms.size}`);
     console.log(`   - Total connections served: ${connectionStats.totalConnections}`);
@@ -150,6 +150,6 @@ setInterval(() => {
       });
     }
   }
-}, 5 * 60 * 1000); // 5 minutes
+}, 5 * 60 * 1000);
 
 module.exports = server;
